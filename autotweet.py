@@ -3,7 +3,6 @@ from PIL import Image, ImageDraw
 import os
 import time
 import tweepy
-import git
 
 # --- Twitter Auth ---
 auth = tweepy.OAuth1UserHandler(
@@ -14,8 +13,7 @@ auth = tweepy.OAuth1UserHandler(
 )
 api = tweepy.API(auth)
 
-# --- Git repo for last_percent tracking ---
-repo = git.Repo(os.getcwd())
+# --- File for last_percent tracking ---
 LAST_PERCENT_FILE = "last_percent.txt"
 
 def read_last_percent():
@@ -29,12 +27,9 @@ def read_last_percent():
         return None
 
 def update_last_percent(percent_int):
+    # Only update locally on Render (no Git push)
     with open(LAST_PERCENT_FILE, "w") as f:
         f.write(str(percent_int))
-    repo.index.add([LAST_PERCENT_FILE])
-    repo.index.commit(f"Update last_percent to {percent_int}")
-    origin = repo.remote(name='origin')
-    origin.push()
 
 # --- Function to post a percent ---
 def post_percent(percent_int, year):
@@ -53,7 +48,7 @@ def post_percent(percent_int, year):
     bar_x0, bar_y0, bar_x1, bar_y1 = 50, 40, 550, 80
     draw.rectangle([bar_x0, bar_y0, bar_x1, bar_y1], outline="black", width=3)
     bar_width = int((percent_int / 100) * (bar_x1 - bar_x0))
-    juice_color = (255, 128, 0)
+    juice_color = (255, 128, 0)  # bright orange bar
     if bar_width > 0:
         draw.rectangle([bar_x0, bar_y0, bar_x0 + bar_width, bar_y1], fill=juice_color)
     file_path = "progress.png"
@@ -63,7 +58,7 @@ def post_percent(percent_int, year):
     media = api.media_upload(file_path)
     api.update_status(status=tweet_text, media_ids=[media.media_id])
 
-    # Update last percent on GitHub
+    # Update last percent locally
     update_last_percent(percent_int)
 
     # Clean up image
