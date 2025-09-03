@@ -1,8 +1,7 @@
 services:
-  - type: cron
+  - type: worker
     name: year-progress-bot
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python autotweet.py"
-    schedule: "0 12 * * *"
