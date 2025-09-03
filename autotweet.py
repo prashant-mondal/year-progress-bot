@@ -3,6 +3,7 @@ from PIL import Image, ImageDraw
 import os
 import time
 import tweepy
+import git
 
 # --- Twitter Auth ---
 auth = tweepy.OAuth1UserHandler(
@@ -13,8 +14,27 @@ auth = tweepy.OAuth1UserHandler(
 )
 api = tweepy.API(auth)
 
-# --- File to store last posted percent ---
+# --- Git repo for last_percent tracking ---
+repo = git.Repo(os.getcwd())
 LAST_PERCENT_FILE = "last_percent.txt"
+
+def read_last_percent():
+    if os.path.exists(LAST_PERCENT_FILE):
+        with open(LAST_PERCENT_FILE, "r") as f:
+            try:
+                return int(f.read())
+            except:
+                return None
+    else:
+        return None
+
+def update_last_percent(percent_int):
+    with open(LAST_PERCENT_FILE, "w") as f:
+        f.write(str(percent_int))
+    repo.index.add([LAST_PERCENT_FILE])
+    repo.index.commit(f"Update last_percent to {percent_int}")
+    origin = repo.remote(name='origin')
+    origin.push()
 
 # --- Continuous loop ---
 while True:
@@ -25,21 +45,11 @@ while True:
     total_seconds = (end - start).total_seconds()
     seconds_per_percent = total_seconds / 100
 
-    # Current integer percent
     percent_float = (now - start).total_seconds() / total_seconds * 100
     percent_int = int(percent_float)
 
-    # Read last posted percent
-    if os.path.exists(LAST_PERCENT_FILE):
-        with open(LAST_PERCENT_FILE, "r") as f:
-            try:
-                last_percent = int(f.read())
-            except:
-                last_percent = None
-    else:
-        last_percent = None
+    last_percent = read_last_percent()
 
-    # Only post if new percent
     if last_percent != percent_int:
         # --- Determine tweet text ---
         if percent_int == 0:
@@ -66,9 +76,8 @@ while True:
         media = api.media_upload(file_path)
         api.update_status(status=tweet_text, media_ids=[media.media_id])
 
-        # --- Update last posted percent ---
-        with open(LAST_PERCENT_FILE, "w") as f:
-            f.write(str(percent_int))
+        # --- Update last percent in GitHub ---
+        update_last_percent(percent_int)
 
         # --- Clean up image ---
         try:
@@ -80,7 +89,6 @@ while True:
     next_percent_time = start + timedelta(seconds=(percent_int + 1) * seconds_per_percent)
     sleep_seconds = (next_percent_time - datetime.now(timezone.utc)).total_seconds()
     if sleep_seconds < 0:
-        sleep_seconds = 0  # safeguard for leap seconds or slight drift
+        sleep_seconds = 0  # safeguard for drift
 
-    # Sleep until next percent increment
     time.sleep(sleep_seconds)
